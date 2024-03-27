@@ -34,6 +34,18 @@ def sonuclari_excel_olarak_indir(personel_programi):
     tum_personellerin_programi = pd.DataFrame()
     toplam_calisma_saatleri = []
     havuz_personel_listesi = []  # Havuz personel listesi
+    gorevler = [
+        {"AD SOYAD": "HASAN ŞİT", "GÖREVLER": "Menaj Dolumu"},
+        {"AD SOYAD": "SİBEL DİZGE", "GÖREVLER": "Menaj Dolumu"},
+        {"AD SOYAD": "BİLGE KURT", "GÖREVLER": "Ekmek Sepeti Temizliği"},
+        {"AD SOYAD": "CEREN SAĞLAMDEMİR", "GÖREVLER": "Baharatlık Temizliği"},
+        {"AD SOYAD": "OSMAN YAMAN", "GÖREVLER": "Yağdanlık Dolumu"},
+        {"AD SOYAD": "HİDAYET UYSAL", "GÖREVLER": "Takım Tabak Dağıtımı"},
+        {"AD SOYAD": "BFERHAT COŞKUN", "GÖREVLER": "Küllük Temizliği"},
+        {"AD SOYAD": "MERTKAN MERÇİL", "GÖREVLER": "Salon Düzeni"},
+        {"AD SOYAD": "ÇAĞATAY KAYA", "GÖREVLER": "Dümenlerin Silinmesi"}
+    ]
+    gorevler_df = pd.DataFrame(gorevler)
  
     for personel, gunler in personel_programi.items():
         saat_dilimleri = sorted(list(set([saat for gun in gunler.values() for saat in gun])))
@@ -58,7 +70,7 @@ def sonuclari_excel_olarak_indir(personel_programi):
         tum_personellerin_programi.to_excel(writer, index=False, sheet_name='Vardiya Planı')
         pd.DataFrame(toplam_calisma_saatleri).to_excel(writer, index=False, sheet_name='Toplam Çalışma Saatleri')
         pd.DataFrame(havuz_personel_listesi).to_excel(writer, index=False, sheet_name='Havuz Personelleri')  # Havuz personelleri sayfasına 'Eksik Saat' sütunu ekle
- 
+        pd.DataFrame(gorevler).to_excel(writer, index=False, sheet_name='Görevler')
     processed_data = output.getvalue()
     return processed_data
  
@@ -83,15 +95,15 @@ kullanici_bilgileri = {
  
 if st.button('Giriş Yap') or st.session_state['login_successful']:
     # Kullanıcı adının ve şifrenin doğruluğunu kontrol et
-    if user in kullanici_bilgileri and password == kullanici_bilgileri[user]:
+ if user in kullanici_bilgileri and password == kullanici_bilgileri[user]:
         st.session_state['login_successful'] = True
         st.success('Giriş başarılı!')
         secim = st.selectbox("Yapmak istediğiniz işlemi seçiniz:",
                      ('Rapor Görüntüle', 'Vardiya Planı Yap'))
        
-    if secim == 'Rapor Görüntüle':
+ if secim == 'Rapor Görüntüle':
                 # 'Rapor Görüntüle' sekmesi içeriği
-     st.write("Raporlar burada görüntülenecek.")
+    st.write("Raporlar burada görüntülenecek.")
     
     # Excel verisini URL'den yükle
     df = pd.read_excel('https://github.com/tturan6446/testtest/raw/main/dataworker.xlsx')
@@ -130,7 +142,7 @@ if st.button('Giriş Yap') or st.session_state['login_successful']:
         )
         st.plotly_chart(fig)
  
-    elif secim == 'Vardiya Planı Yap':
+ elif secim == 'Vardiya Planı Yap':
             # Vardiya Planı Yap seçeneği seçildiğinde ilgili işlemleri yap
             uploaded_personel_listesi = st.file_uploader("Çalışanların Excel dosyasını yükle", type=['xlsx'], key="personel_uploader")
  
@@ -153,6 +165,6 @@ if st.button('Giriş Yap') or st.session_state['login_successful']:
                                    data=excel_data,
                                    file_name="vardiya_planı.xlsx",
                                    mime="application/vnd.ms-excel")
-    else:
-        st.session_state['login_successful'] = False
-        st.error('Giriş başarısız. Lütfen tekrar deneyin.')
+ else:
+    st.session_state['login_successful'] = False
+    st.error('Giriş başarısız. Lütfen tekrar deneyin.')
