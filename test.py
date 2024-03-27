@@ -4,65 +4,63 @@ import numpy as np
 import os
 from io import BytesIO  # Excel dosyasını bellekte tutmak için
 import requests
+import plotly.express as px
  
- 
-# Fonksiyon tanımlamaları
 def atama_yap(vardiya_plani_df, personel_listesi):
     personel_programi = {personel: {'Pazartesi': [], 'Salı': [], 'Çarşamba': [], 'Perşembe': [], 'Cuma': [], 'Cumartesi': [], 'Pazar': []} for personel in personel_listesi}
     gunler = vardiya_plani_df.index.tolist()
     saatler = vardiya_plani_df.columns.tolist()
  
+    off_gun_secenekleri = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma']
+    personel_off_gunleri = {personel: np.random.choice(off_gun_secenekleri) for personel in personel_listesi}
+ 
     for personel in personel_listesi:
+        off_gun = personel_off_gunleri[personel]
         for gun in gunler:
-            for saat in saatler:
-                try:
-                    if len(personel_programi[personel][gun]) < 9 and vardiya_plani_df.at[gun, saat] > 0:
-                        personel_programi[personel][gun].append(saat)
-                        vardiya_plani_df.at[gun, saat] -= 1
-                except IndexError:
-                    break
+            if gun == off_gun:
+                continue  # OFF günlerinde hiçbir şey yapma, listeyi boş bırak
+            else:
+                for i in range(len(saatler)):
+                    if i + 9 > len(saatler):
+                        break
+                    if all(vardiya_plani_df.at[gun, saatler[j]] > 0 for j in range(i, i + 9)):
+                        personel_programi[personel][gun] = [saatler[j] for j in range(i, i + 9)]
+                        for j in range(i, i + 9):
+                            vardiya_plani_df.at[gun, saatler[j]] -= 1
+                        break
     return personel_programi
  
-#Sabah 8 kısıtı eklenmeli
-#Ek sayfada plan olacak
-#Buraya off günleri belirtilmeli ya da off günleri buraya kısıt verilerek çıkarılmalı
-#off planı Oktay Bey'den gelmeli
-#Vardiya şekli böyle mi olmalı ?
-#Hem çalışan hem de gün bazlı özet gösterim olmalı
-#Sabah saatlerinde vardiya çıktısı çok doğru değil, kontrol edilmeli
 def sonuclari_excel_olarak_indir(personel_programi):
     tum_personellerin_programi = pd.DataFrame()
     toplam_calisma_saatleri = []
     havuz_personel_listesi = []  # Havuz personel listesi
-
+ 
     for personel, gunler in personel_programi.items():
         saat_dilimleri = sorted(list(set([saat for gun in gunler.values() for saat in gun])))
         data = {'Personel': personel, 'Gün': [], **{saat: [] for saat in saat_dilimleri}}
         toplam_saat = sum(len(saatler) for saatler in gunler.values())
         toplam_calisma_saatleri.append({'Personel': personel, 'Toplam Çalışma Saati': toplam_saat})
-
+ 
         eksik_saat = max(0, 63 - toplam_saat)  # Eksik saat hesaplama
         if toplam_saat < 63:  # Haftalık 63 saat dolduramayanlar için kontrol
             havuz_personel_listesi.append({'Personel': personel, 'Durum': 'Havuz Personel', 'Eksik Saat': eksik_saat})
-
+ 
         for gun in ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']:
             data['Gün'].append(gun)
             for saat in saat_dilimleri:
                 data[saat].append('X' if saat in gunler[gun] else '')
-        
+       
         personel_df = pd.DataFrame(data)
         tum_personellerin_programi = pd.concat([tum_personellerin_programi, personel_df, pd.DataFrame([['']*(len(saat_dilimleri)+2)], columns=['Personel', 'Gün', *saat_dilimleri])])
-
+ 
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         tum_personellerin_programi.to_excel(writer, index=False, sheet_name='Vardiya Planı')
         pd.DataFrame(toplam_calisma_saatleri).to_excel(writer, index=False, sheet_name='Toplam Çalışma Saatleri')
         pd.DataFrame(havuz_personel_listesi).to_excel(writer, index=False, sheet_name='Havuz Personelleri')  # Havuz personelleri sayfasına 'Eksik Saat' sütunu ekle
-
+ 
     processed_data = output.getvalue()
     return processed_data
-
-
  
 # Ana Streamlit uygulaması
 st.image("https://www.filmon.com.tr/wp-content/uploads/2022/01/divan-logo.png", width=200)
@@ -73,7 +71,7 @@ password = st.text_input('Şifre', type='password')
  
 if 'login_successful' not in st.session_state:
     st.session_state['login_successful'] = False
-
+ 
 kullanici_bilgileri = {
     'admin': '12345',
     'tolgat': '12345',
@@ -88,36 +86,73 @@ if st.button('Giriş Yap') or st.session_state['login_successful']:
     if user in kullanici_bilgileri and password == kullanici_bilgileri[user]:
         st.session_state['login_successful'] = True
         st.success('Giriş başarılı!')
+        secim = st.selectbox("Yapmak istediğiniz işlemi seçiniz:",
+                     ('Rapor Görüntüle', 'Vardiya Planı Yap'))
        
-        uploaded_personel_listesi = st.file_uploader("Çalışanların Excel dosyasını yükle", type=['xlsx'], key="personel_uploader")
-        if uploaded_personel_listesi is not None:
-            df_uploaded_personel = pd.read_excel(uploaded_personel_listesi, usecols=['Ad Soyad'])
-            personel_listesi = df_uploaded_personel['Ad Soyad'].tolist()
-            st.write('Yüklenen personel listesi başarıyla alındı.')
-            st.dataframe(df_uploaded_personel)
+    if secim == 'Rapor Görüntüle':
+                # 'Rapor Görüntüle' sekmesi içeriği
+     st.write("Raporlar burada görüntülenecek.")
+    
+    # Excel verisini URL'den yükle
+    df = pd.read_excel('https://github.com/tturan6446/testtest/raw/main/dataworker.xlsx')
+    
+    # Sütun seçimleri için seçim kutuları
+    dimension_cols = st.multiselect(
+        "Dimension sütunlarını seçin:",
+        options=['BUSINESSDATE', 'LOCATIONNAME', 'TIMEPRD', 'Explain'],
+        default=['BUSINESSDATE', 'LOCATIONNAME']
+    )
+    
+    metrics_cols = st.multiselect(
+        "Metric sütunlarını seçin:",
+        options=['MaxTemp', 'MinTemp', 'Hesap Sayısı', 'Çalışan Sayısı', 'Yemek Sayısı'],
+        default=['MaxTemp', 'MinTemp']
+    )
+    
+    # BUSINESSDATE için bir tarih aralığı seçici
+    business_date = st.select_slider(
+        "Tarih aralığını seçin:",
+        options=df['BUSINESSDATE'].unique(),
+        value=(df['BUSINESSDATE'].min(), df['BUSINESSDATE'].max())
+    )
+    
+    # Filtrelenmiş DataFrame
+    filtered_df = df[(df['BUSINESSDATE'] >= business_date[0]) & (df['BUSINESSDATE'] <= business_date[1])]
+    
+    # Seçilen sütunlara göre bir grafik oluştur
+    if dimension_cols and metrics_cols:
+        fig = px.bar(
+            filtered_df,
+            x=dimension_cols[0],
+            y=metrics_cols,
+            color=dimension_cols[1] if len(dimension_cols) > 1 else None,
+            title="Seçilen Sütunlara Göre Grafik"
+        )
+        st.plotly_chart(fig)
  
-            
-            # GitHub'dan vardiya planını doğrudan okuyun
-            excel_url = "https://github.com/tturan6446/testtest/raw/main/7_gunluk_vardiya_plani.xlsx"
-            df_vardiya_plani = pd.read_excel(excel_url, header=2, index_col=0)
-            df_vardiya_plani.columns = ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00']
-            st.success('7 günlük vardiya planı dosyası başarıyla okundu.')
-                #st.dataframe(df_vardiya_plani)
-                #st.write(df_vardiya_plani.index)
-                #st.write(df_vardiya_plani.columns)
-                # Atama fonksiyonunu çağır
-            personel_programi = atama_yap(df_vardiya_plani, personel_listesi)
+    elif secim == 'Vardiya Planı Yap':
+            # Vardiya Planı Yap seçeneği seçildiğinde ilgili işlemleri yap
+            uploaded_personel_listesi = st.file_uploader("Çalışanların Excel dosyasını yükle", type=['xlsx'], key="personel_uploader")
+ 
+            if uploaded_personel_listesi is not None:
+                df_uploaded_personel = pd.read_excel(uploaded_personel_listesi, usecols=['Ad Soyad'])
+                personel_listesi = df_uploaded_personel['Ad Soyad'].tolist()
+                st.write('Yüklenen personel listesi başarıyla alındı.')
+                st.dataframe(df_uploaded_personel)
+ 
+                excel_url = "https://github.com/tturan6446/testtest/raw/main/7_gunluk_vardiya_plani.xlsx"
+                df_vardiya_plani = pd.read_excel(excel_url, header=2, index_col=0)
+                df_vardiya_plani.columns = ['00:00', '01:00', '02:00', '03:00', '04:00', '05:00', '06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00']
+                st.success('7 günlük vardiya planı dosyası başarıyla okundu.')
+ 
+                personel_programi = atama_yap(df_vardiya_plani, personel_listesi)
+                excel_data = sonuclari_excel_olarak_indir(personel_programi)
+                st.dataframe(personel_programi)
                
-                # Excel dosyası olarak sonuçları indir
-            excel_data = sonuclari_excel_olarak_indir(personel_programi)
-            st.dataframe(personel_programi)
-                
-            st.download_button(label="Atama Sonuçlarını Excel olarak indir",
+                st.download_button(label="Atama Sonuçlarını Excel olarak indir",
                                    data=excel_data,
                                    file_name="vardiya_planı.xlsx",
                                    mime="application/vnd.ms-excel")
-        else:
-                st.error('7 günlük vardiya planı dosyası bulunamadı.')
     else:
         st.session_state['login_successful'] = False
         st.error('Giriş başarısız. Lütfen tekrar deneyin.')
