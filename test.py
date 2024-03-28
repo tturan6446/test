@@ -5,6 +5,7 @@ import os
 from io import BytesIO  # Excel dosyasını bellekte tutmak için
 import requests
 import plotly.express as px
+import plotly.graph_objects as go
  
 def atama_yap(vardiya_plani_df, personel_listesi):
     personel_programi = {personel: {'Pazartesi': [], 'Salı': [], 'Çarşamba': [], 'Perşembe': [], 'Cuma': [], 'Cumartesi': [], 'Pazar': []} for personel in personel_listesi}
@@ -102,23 +103,34 @@ if st.button('Giriş Yap') or st.session_state['login_successful']:
                      ('Rapor Görüntüle', 'Vardiya Planı Yap'))
        
  if secim == 'Rapor Görüntüle':
-                # 'Rapor Görüntüle' sekmesi içeriği
     st.write("Raporlar burada görüntülenecek.")
-    
+
     # Excel verisini URL'den yükle
     df = pd.read_excel('https://github.com/tturan6446/testtest/raw/main/dataworker.xlsx')
+    df['BUSINESSDATE'] = pd.to_datetime(df['BUSINESSDATE'])
+    
+    # "Week" ve "Month" boyutlarını ekleyin
+    df['Week'] = df['BUSINESSDATE'].dt.isocalendar().week
+    df['Month'] = df['BUSINESSDATE'].dt.month
+
+    # "BUSINESSDATE" sütununu 'YYYY-MM-DD' formatına çevirin
+    df['BUSINESSDATE'] = df['BUSINESSDATE'].dt.strftime('%Y-%m-%d')
+    
+    # "Maliyet Fonksiyonu" metriğini hesapla
+    if 'Çalışan Sayısı' in df.columns:
+        df['Maliyet Fonksiyonu'] = df['Çalışan Sayısı'] * 83.33
     
     # Sütun seçimleri için seçim kutuları
     dimension_cols = st.multiselect(
         "Dimension sütunlarını seçin:",
-        options=['BUSINESSDATE', 'LOCATIONNAME', 'TIMEPRD', 'Explain'],
-        default=['BUSINESSDATE', 'LOCATIONNAME']
+        options=['BUSINESSDATE', 'LOCATIONNAME', 'Week', 'Month', 'TIMEPRD', 'Explain', 'MaxTemp', 'MinTemp'],
+        default=['BUSINESSDATE', 'LOCATIONNAME', 'Week', 'Month']
     )
     
     metrics_cols = st.multiselect(
         "Metric sütunlarını seçin:",
-        options=['MaxTemp', 'MinTemp', 'Hesap Sayısı', 'Çalışan Sayısı', 'Yemek Sayısı'],
-        default=['MaxTemp', 'MinTemp']
+        options=['Hesap Sayısı', 'Çalışan Sayısı', 'Yemek Sayısı', 'Maliyet Fonksiyonu'],
+        default=['Hesap Sayısı']
     )
     
     # BUSINESSDATE için bir tarih aralığı seçici
@@ -131,17 +143,28 @@ if st.button('Giriş Yap') or st.session_state['login_successful']:
     # Filtrelenmiş DataFrame
     filtered_df = df[(df['BUSINESSDATE'] >= business_date[0]) & (df['BUSINESSDATE'] <= business_date[1])]
     
-    # Seçilen sütunlara göre bir grafik oluştur
+    # Seçilen sütunlara göre gruplama ve agregasyon
+    grouped_df = filtered_df.groupby(dimension_cols)[metrics_cols].sum().reset_index()
+
+    col1, col2 = st.columns(2)
+    
+    # Gruplanmış veriyi çizgi grafiği olarak göster
     if dimension_cols and metrics_cols:
-        fig = px.bar(
-            filtered_df,
-            x=dimension_cols[0],
-            y=metrics_cols,
-            color=dimension_cols[1] if len(dimension_cols) > 1 else None,
-            title="Seçilen Sütunlara Göre Grafik"
-        )
-        st.plotly_chart(fig)
- 
+        for metric in metrics_cols:
+            fig = px.line(
+                grouped_df,
+                x=dimension_cols[0],  # Gruplama için kullanılan ilk dimension sütunu
+                y=metric,  # Metriklerden her biri
+                color=dimension_cols[1] if len(dimension_cols) > 1 else None,  # İkinci dimension sütunu varsa renk olarak kullan
+                title=f"{metric} için Çizgi Grafiği",
+                markers=True  # Her veri noktasını işaretleyin
+            )
+            col1.plotly_chart(fig, use_container_width=True)
+    
+    # Gruplanmış veriyi tablo olarak göster
+    col2.write("Gruplanmış Veri Seti:")
+    col2.dataframe(grouped_df, height=600) 
+              
  elif secim == 'Vardiya Planı Yap':
             # Vardiya Planı Yap seçeneği seçildiğinde ilgili işlemleri yap
             uploaded_personel_listesi = st.file_uploader("Çalışanların Excel dosyasını yükle", type=['xlsx'], key="personel_uploader")
