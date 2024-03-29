@@ -58,7 +58,11 @@ def sonuclari_excel_olarak_indir(personel_programi):
                    {"AD SOYAD": "MERTKAN MERÇİL", "Pazartesi": "","Salı": "","Çarşamba": "","Perşembe": "","Cuma": "","Cumartesi": "","Pazar": ""},
                    {"AD SOYAD": "ÇAĞATAY KAYA", "Pazartesi": "","Salı": "","Çarşamba": "","Perşembe": "","Cuma": "","Cumartesi": "","Pazar": ""}
                    ]
-    taslak_plan_df = pd.DataFrame(taslak_plan)   
+    yorumlar_df = pd.DataFrame(taslak_plan)  
+    yorumlar = [{"AD SOYAD": "Oktay Çiçek", "Yorum": "","Tarih": ""}
+                  
+                   ]
+    yorumlar_df = pd.DataFrame(taslak_plan)  
   
     for personel, gunler in personel_programi.items():
         saat_dilimleri = sorted(list(set([saat for gun in gunler.values() for saat in gun])))
@@ -85,6 +89,7 @@ def sonuclari_excel_olarak_indir(personel_programi):
         pd.DataFrame(havuz_personel_listesi).to_excel(writer, index=False, sheet_name='Havuz Personelleri')  # Havuz personelleri sayfasına 'Eksik Saat' sütunu ekle
         pd.DataFrame(gorevler).to_excel(writer, index=False, sheet_name='Görevler')
         pd.DataFrame(taslak_plan).to_excel(writer,index=False, sheet_name='Taslak Plan')
+        pd.DataFrame(yorumlar).to_excel(writer,index=False, sheet_name='Yorumlar')
     processed_data = output.getvalue()
     
     return processed_data
