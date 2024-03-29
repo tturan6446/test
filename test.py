@@ -6,6 +6,7 @@ from io import BytesIO  # Excel dosyasını bellekte tutmak için
 import requests
 import plotly.express as px
 import plotly.graph_objects as go
+import time
  
 def atama_yap(vardiya_plani_df, personel_listesi):
     personel_programi = {personel: {'Pazartesi': [], 'Salı': [], 'Çarşamba': [], 'Perşembe': [], 'Cuma': [], 'Cumartesi': [], 'Pazar': []} for personel in personel_listesi}
@@ -42,20 +43,31 @@ def sonuclari_excel_olarak_indir(personel_programi):
         {"AD SOYAD": "CEREN SAĞLAMDEMİR", "GÖREVLER": "Baharatlık Temizliği"},
         {"AD SOYAD": "OSMAN YAMAN", "GÖREVLER": "Yağdanlık Dolumu"},
         {"AD SOYAD": "HİDAYET UYSAL", "GÖREVLER": "Takım Tabak Dağıtımı"},
-        {"AD SOYAD": "BFERHAT COŞKUN", "GÖREVLER": "Küllük Temizliği"},
+        {"AD SOYAD": "FERHAT COŞKUN", "GÖREVLER": "Küllük Temizliği"},
         {"AD SOYAD": "MERTKAN MERÇİL", "GÖREVLER": "Salon Düzeni"},
         {"AD SOYAD": "ÇAĞATAY KAYA", "GÖREVLER": "Dümenlerin Silinmesi"}
     ]
     gorevler_df = pd.DataFrame(gorevler)
- 
+    taslak_plan = [{"AD SOYAD": "HASAN ŞİT", "Pazartesi": "","Salı": "","Çarşamba": "","Perşembe": "","Cuma": "","Cumartesi": "","Pazar": ""},
+                   {"AD SOYAD": "SİBEL DİZGE", "Pazartesi": "","Salı": "","Çarşamba": "","Perşembe": "","Cuma": "","Cumartesi": "","Pazar": ""},
+                   {"AD SOYAD": "BİLGE KURT", "Pazartesi": "","Salı": "","Çarşamba": "", "Perşembe": "","Cuma": "","Cumartesi": "","Pazar": ""},
+                   {"AD SOYAD": "CEREN SAĞLAMDEMİR", "Pazartesi": "","Salı": "","Çarşamba": "","Perşembe": "","Cuma": "","Cumartesi": "","Pazar": ""},
+                   {"AD SOYAD": "OSMAN YAMAN", "Pazartesi": "","Salı": "","Çarşamba": "","Perşembe": "","Cuma": "","Cumartesi": "","Pazar": ""},
+                   {"AD SOYAD": "HİDAYET UYSAL", "Pazartesi": "","Salı": "","Çarşamba": "","Perşembe": "","Cuma": "","Cumartesi": "","Pazar": ""},
+                   {"AD SOYAD": "FERHAT COŞKUN", "Pazartesi": "","Salı": "","Çarşamba": "","Perşembe": "","Cuma": "","Cumartesi": "","Pazar": ""},
+                   {"AD SOYAD": "MERTKAN MERÇİL", "Pazartesi": "","Salı": "","Çarşamba": "","Perşembe": "","Cuma": "","Cumartesi": "","Pazar": ""},
+                   {"AD SOYAD": "ÇAĞATAY KAYA", "Pazartesi": "","Salı": "","Çarşamba": "","Perşembe": "","Cuma": "","Cumartesi": "","Pazar": ""}
+                   ]
+    taslak_plan_df = pd.DataFrame(taslak_plan)   
+  
     for personel, gunler in personel_programi.items():
         saat_dilimleri = sorted(list(set([saat for gun in gunler.values() for saat in gun])))
         data = {'Personel': personel, 'Gün': [], **{saat: [] for saat in saat_dilimleri}}
         toplam_saat = sum(len(saatler) for saatler in gunler.values())
         toplam_calisma_saatleri.append({'Personel': personel, 'Toplam Çalışma Saati': toplam_saat})
  
-        eksik_saat = max(0, 63 - toplam_saat)  # Eksik saat hesaplama
-        if toplam_saat < 63:  # Haftalık 63 saat dolduramayanlar için kontrol
+        eksik_saat = max(0, 54 - toplam_saat)  # Eksik saat hesaplama
+        if toplam_saat < 54:  # Haftalık 63 saat dolduramayanlar için kontrol
             havuz_personel_listesi.append({'Personel': personel, 'Durum': 'Havuz Personel', 'Eksik Saat': eksik_saat})
  
         for gun in ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']:
@@ -72,7 +84,9 @@ def sonuclari_excel_olarak_indir(personel_programi):
         pd.DataFrame(toplam_calisma_saatleri).to_excel(writer, index=False, sheet_name='Toplam Çalışma Saatleri')
         pd.DataFrame(havuz_personel_listesi).to_excel(writer, index=False, sheet_name='Havuz Personelleri')  # Havuz personelleri sayfasına 'Eksik Saat' sütunu ekle
         pd.DataFrame(gorevler).to_excel(writer, index=False, sheet_name='Görevler')
+        pd.DataFrame(taslak_plan).to_excel(writer,index=False, sheet_name='Taslak Plan')
     processed_data = output.getvalue()
+    
     return processed_data
  
 # Ana Streamlit uygulaması
@@ -103,72 +117,12 @@ if st.button('Giriş Yap') or st.session_state['login_successful']:
                      ('Rapor Görüntüle', 'Vardiya Planı Yap'))
        
  if secim == 'Rapor Görüntüle':
-    st.write("Raporlar burada görüntülenecek.")
-
-    # Excel verisini URL'den yükle
-    df = pd.read_excel('https://github.com/tturan6446/testtest/raw/main/dataworker.xlsx')
-    df['BUSINESSDATE'] = pd.to_datetime(df['BUSINESSDATE'])
-    
-    # "Week" ve "Month" boyutlarını ekleyin
-    df['Week'] = df['BUSINESSDATE'].dt.isocalendar().week
-    df['Month'] = df['BUSINESSDATE'].dt.month
-
-    # "BUSINESSDATE" sütununu 'YYYY-MM-DD' formatına çevirin
-    df['BUSINESSDATE'] = df['BUSINESSDATE'].dt.strftime('%Y-%m-%d')
-    
-    # "Maliyet Fonksiyonu" metriğini hesapla
-    if 'Çalışan Sayısı' in df.columns:
-        df['Maliyet Fonksiyonu'] = df['Çalışan Sayısı'] * 83.33
-    
-    # Sütun seçimleri için seçim kutuları
-    dimension_cols = st.multiselect(
-        "Dimension sütunlarını seçin:",
-        options=['BUSINESSDATE', 'LOCATIONNAME', 'Week', 'Month', 'TIMEPRD', 'Explain', 'MaxTemp', 'MinTemp'],
-        default=['BUSINESSDATE', 'LOCATIONNAME', 'Week', 'Month']
-    )
-    
-    metrics_cols = st.multiselect(
-        "Metric sütunlarını seçin:",
-        options=['Hesap Sayısı', 'Çalışan Sayısı', 'Yemek Sayısı', 'Maliyet Fonksiyonu'],
-        default=['Hesap Sayısı']
-    )
-    
-    # BUSINESSDATE için bir tarih aralığı seçici
-    business_date = st.select_slider(
-        "Tarih aralığını seçin:",
-        options=df['BUSINESSDATE'].unique(),
-        value=(df['BUSINESSDATE'].min(), df['BUSINESSDATE'].max())
-    )
-    
-    # Filtrelenmiş DataFrame
-    filtered_df = df[(df['BUSINESSDATE'] >= business_date[0]) & (df['BUSINESSDATE'] <= business_date[1])]
-    
-    # Seçilen sütunlara göre gruplama ve agregasyon
-    grouped_df = filtered_df.groupby(dimension_cols)[metrics_cols].sum().reset_index()
-
-    col1, col2 = st.columns(2)
-    
-    # Gruplanmış veriyi çizgi grafiği olarak göster
-    if dimension_cols and metrics_cols:
-        for metric in metrics_cols:
-            fig = px.line(
-                grouped_df,
-                x=dimension_cols[0],  # Gruplama için kullanılan ilk dimension sütunu
-                y=metric,  # Metriklerden her biri
-                color=dimension_cols[1] if len(dimension_cols) > 1 else None,  # İkinci dimension sütunu varsa renk olarak kullan
-                title=f"{metric} için Çizgi Grafiği",
-                markers=True  # Her veri noktasını işaretleyin
-            )
-            col1.plotly_chart(fig, use_container_width=True)
-    
-    # Gruplanmış veriyi tablo olarak göster
-    col2.write("Gruplanmış Veri Seti:")
-    col2.dataframe(grouped_df, height=600) 
+    st.write("Yakın Zamanda Hizmetinizde")
               
  elif secim == 'Vardiya Planı Yap':
             # Vardiya Planı Yap seçeneği seçildiğinde ilgili işlemleri yap
             uploaded_personel_listesi = st.file_uploader("Çalışanların Excel dosyasını yükle", type=['xlsx'], key="personel_uploader")
- 
+              
             if uploaded_personel_listesi is not None:
                 df_uploaded_personel = pd.read_excel(uploaded_personel_listesi, usecols=['Ad Soyad'])
                 personel_listesi = df_uploaded_personel['Ad Soyad'].tolist()
@@ -182,8 +136,10 @@ if st.button('Giriş Yap') or st.session_state['login_successful']:
  
                 personel_programi = atama_yap(df_vardiya_plani, personel_listesi)
                 excel_data = sonuclari_excel_olarak_indir(personel_programi)
+                if uploaded_personel_listesi is not None:
+                  with st.spinner('Yapay Zeka ile planınız hazırlanıyor...'):
+                   time.sleep(10)  # 5 saniye bekleme efekti 
                 st.dataframe(personel_programi)
-               
                 st.download_button(label="Atama Sonuçlarını Excel olarak indir",
                                    data=excel_data,
                                    file_name="vardiya_planı.xlsx",
