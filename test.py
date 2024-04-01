@@ -94,7 +94,7 @@ def sonuclari_excel_olarak_indir(personel_programi):
     
     return processed_data
  
-# Ana Streamlit uygulaması
+#Uygulama
 st.image("https://www.filmon.com.tr/wp-content/uploads/2022/01/divan-logo.png", width=200)
 st.title('Smart Shift Planner')
  
