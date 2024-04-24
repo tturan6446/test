@@ -110,7 +110,8 @@ kullanici_bilgileri = {
     'turgutk' : '12345',
     'elifc'  : '12345',
     'dogana' : '12345',
-    'akasyabrasserie' : '12345'
+    'akasyabrasserie' : '12345',
+    'divanik' : '12345'
 }
  
 if st.button('Giriş Yap') or st.session_state['login_successful']:
